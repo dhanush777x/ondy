@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,9 +7,25 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val localProperties = Properties()
+localProperties.load(file("../local.properties").inputStream())
+
+val keystorePassword = localProperties.getProperty("ondy.store.password", "ondy123456")
+val keyPasswordValue = localProperties.getProperty("ondy.key.password", "ondy123456")
+val keyAliasValue = localProperties.getProperty("ondy.key.alias", "ondy-key")
+
 android {
     namespace = "com.ondy.app"
     compileSdk = 34
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("release.keystore")
+            storePassword = keystorePassword
+            keyAlias = keyAliasValue
+            keyPassword = keyPasswordValue
+        }
+    }
 
     defaultConfig {
         applicationId = "com.ondy.app"
@@ -24,6 +42,7 @@ android {
 
     buildTypes {
         release {
+            signingConfig = android.signingConfigs.getByName("release")
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
