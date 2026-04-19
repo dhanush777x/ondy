@@ -15,13 +15,13 @@
 
 ## Screenshots
 
-| Welcome                                                                            | App Selection                                                                            | Schedule                                                                            |
-| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| [![Welcome.jpg](https://iili.io/BUbK1Lu.md.jpg)](https://freeimage.host/i/BUbK1Lu) | [![App_Selection.jpg](https://iili.io/BUbnfDB.md.jpg)](https://freeimage.host/i/BUbnfDB) | [![Schedule.jpg](https://iili.io/BUbo0hB.md.jpg)](https://freeimage.host/i/BUbo0hB) |
+| Welcome | Notifications Permissions | Privacy |
+|--------|--------------------------|---------|
+| [![Welcome.jpg](https://iili.io/BUbK1Lu.md.jpg)](https://freeimage.host/i/BUbK1Lu) | [![Notification_Permissions.jpg](https://iili.io/BUbT19a.md.jpg)](https://freeimage.host/i/BUbT19a) | [![Privacy.jpg](https://iili.io/BgU4ghG.md.jpg)](https://freeimage.host/i/BgU4ghG) |
 
-| Notifications Permissions                                                                           | Notifications      |
-| --------------------------------------------------------------------------------------------------- | ------------------ |
-| [![Notification_Permissions.jpg](https://iili.io/BUbT19a.md.jpg)](https://freeimage.host/i/BUbT19a) | ![Notifications]() |
+| App Selection | Schedule | Notifications |
+|--------------|----------|---------------|
+| [![App_Selection.jpg](https://iili.io/BUbnfDB.md.jpg)](https://freeimage.host/i/BUbnfDB) | [![Schedule.jpg](https://iili.io/BUbo0hB.md.jpg)](https://freeimage.host/i/BUbo0hB) | [![Notifications.jpg](https://iili.io/BgUUe29.md.jpg)](https://freeimage.host/i/BgUUe29) |
 
 ## Installation
 
