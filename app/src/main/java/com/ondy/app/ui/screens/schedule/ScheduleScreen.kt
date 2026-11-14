@@ -33,11 +33,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TimePickerDefaults
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,32 +44,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ondy.app.R
 import com.ondy.app.domain.model.ScheduleTime
+import com.ondy.app.ui.components.OndyTopAppBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduleScreen(
+    onOpenSettings: () -> Unit,
     viewModel: ScheduleViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showTimePicker by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Schedule",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
-                )
+            OndyTopAppBar(
+                title = stringResource(R.string.schedule),
+                onOpenSettings = onOpenSettings
             )
         },
         floatingActionButton = {
@@ -80,7 +75,7 @@ fun ScheduleScreen(
                 containerColor = MaterialTheme.colorScheme.primary,
                 shape = CircleShape
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Add time")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cd_add_time))
             }
         },
         containerColor = Color.Transparent
@@ -142,12 +137,12 @@ private fun EmptyScheduleState() {
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "No schedule set",
+                text = stringResource(R.string.no_schedule_title),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "Tap + to add a time",
+                text = stringResource(R.string.no_schedule_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
@@ -202,7 +197,7 @@ private fun ScheduleTimeCard(
             IconButton(onClick = onDelete) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Remove",
+                    contentDescription = stringResource(R.string.cd_remove_time),
                     modifier = Modifier.size(20.dp),
                     tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
                 )
@@ -225,15 +220,37 @@ private fun TimePickerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Select Time", fontWeight = FontWeight.SemiBold) },
-        text = { TimePicker(state = timePickerState) },
+        title = { Text(stringResource(R.string.select_time), fontWeight = FontWeight.SemiBold) },
+        text = {
+            TimePicker(
+                state = timePickerState,
+                // Use the theme accent for every selected element so the
+                // panel reads the same in light, dark and Material You.
+                colors = TimePickerDefaults.colors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    clockDialColor = MaterialTheme.colorScheme.surfaceVariant,
+                    clockDialSelectedContentColor = MaterialTheme.colorScheme.onPrimary,
+                    clockDialUnselectedContentColor = MaterialTheme.colorScheme.onSurface,
+                    selectorColor = MaterialTheme.colorScheme.primary,
+                    timeSelectorSelectedContainerColor = MaterialTheme.colorScheme.primary,
+                    timeSelectorSelectedContentColor = MaterialTheme.colorScheme.onPrimary,
+                    timeSelectorUnselectedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    timeSelectorUnselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    periodSelectorSelectedContainerColor = MaterialTheme.colorScheme.primary,
+                    periodSelectorSelectedContentColor = MaterialTheme.colorScheme.onPrimary,
+                    periodSelectorUnselectedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    periodSelectorUnselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    periodSelectorBorderColor = MaterialTheme.colorScheme.outline
+                )
+            )
+        },
         confirmButton = {
             TextButton(onClick = { onConfirm(timePickerState.hour, timePickerState.minute) }) {
-                Text("Save")
+                Text(stringResource(R.string.save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         },
         shape = RoundedCornerShape(16.dp)
     )

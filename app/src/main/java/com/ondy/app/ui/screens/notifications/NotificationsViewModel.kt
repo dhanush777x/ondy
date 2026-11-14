@@ -2,16 +2,19 @@ package com.ondy.app.ui.screens.notifications
 
 import android.app.Application
 import android.content.Intent
-import android.content.pm.PackageManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ondy.app.domain.model.BlockedNotification
 import com.ondy.app.domain.repository.NotificationRepository
 import com.ondy.app.service.NotificationInterceptorService
+import com.ondy.app.util.AppCache
 import dagger.hilt.android.lifecycle.HiltViewModel
+import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -23,68 +26,70 @@ data class NotificationsUiState(
 @HiltViewModel
 class NotificationsViewModel @Inject constructor(
     private val notificationRepository: NotificationRepository,
+    private val appCache: AppCache,
     application: Application
 ) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(NotificationsUiState())
     val uiState: StateFlow<NotificationsUiState> = _uiState.asStateFlow()
 
-    val packageManager: PackageManager = application.packageManager
+    private val packageManager = application.packageManager
 
     init {
-        loadNotifications()
+        viewModelScope.launch {
+            notificationRepository.notifications
+                .catch { Log.e(TAG, "Failed to observe notifications", it) }
+                .collect { notifications ->
+                    _uiState.update {
+                        it.copy(notifications = notifications, isLoading = false)
+                    }
+                }
+        }
+        viewModelScope.launch { runCatching { appCache.ensureLoaded() } }
     }
 
-    private fun loadNotifications() {
-        viewModelScope.launch {
-            notificationRepository.getAllNotifications().collect { notifications ->
-                _uiState.value = _uiState.value.copy(
-                    notifications = notifications,
-                    isLoading = false
-                )
-            }
-        }
-    }
+    fun iconModel(packageName: String): String? = appCache.getIconModel(packageName)
 
     fun deleteNotification(id: Long) {
         viewModelScope.launch {
-            val notification = notificationRepository.getNotificationById(id)
-            notification?.let {
-                val pendingIntentId = it.intentAction?.toLongOrNull()
-                pendingIntentId?.let { pid ->
-                    NotificationInterceptorService.removePendingIntent(pid)
-                }
-            }
-            notificationRepository.deleteNotification(id)
+            runCatching {
+                notificationRepository.getNotificationById(id)
+                    ?.intentAction
+                    ?.toLongOrNull()
+                    ?.let(NotificationInterceptorService::removePendingIntent)
+                notificationRepository.deleteNotification(id)
+            }.onFailure { Log.e(TAG, "Error deleting notification", it) }
         }
     }
 
     fun clearAllNotifications() {
         viewModelScope.launch {
-            notificationRepository.getAllNotifications().collect { notifications ->
-                notifications.forEach { notification ->
-                    val pendingIntentId = notification.intentAction?.toLongOrNull()
-                    pendingIntentId?.let { pid ->
-                        NotificationInterceptorService.removePendingIntent(pid)
-                    }
-                }
+            runCatching {
                 notificationRepository.deleteAllNotifications()
-            }
+                NotificationInterceptorService.clearPendingIntents()
+            }.onFailure { Log.e(TAG, "Error clearing notifications", it) }
         }
     }
 
+    /**
+     * Replays the original notification's action when possible, otherwise opens
+     * the app that posted it. Returns null when the action was already sent.
+     */
     fun createNotificationIntent(notification: BlockedNotification): Intent? {
         return try {
             val pendingIntentId = notification.intentAction?.toLongOrNull()
-            
-            if (pendingIntentId != null && notification.intentData == "pendingIntent") {
-                val pendingIntent = NotificationInterceptorService.getPendingIntent(pendingIntentId)
+
+            if (pendingIntentId != null && notification.intentData == INTENT_DATA_PENDING) {
+                val pendingIntent =
+                    NotificationInterceptorService.getPendingIntent(pendingIntentId)
                 if (pendingIntent != null) {
                     try {
                         pendingIntent.send()
                         return null
                     } catch (e: android.app.PendingIntent.CanceledException) {
+                        Log.w(TAG, "PendingIntent cancelled", e)
                     } catch (e: Exception) {
+                        Log.w(TAG, "Error sending PendingIntent", e)
                     }
                 }
             }
@@ -95,8 +100,8 @@ class NotificationsViewModel @Inject constructor(
                 Intent(Intent.ACTION_VIEW)
             }
 
-            notification.intentData?.let { 
-                if (it != "pendingIntent") {
+            notification.intentData?.let {
+                if (it != INTENT_DATA_PENDING) {
                     intent.data = android.net.Uri.parse(it)
                 }
             }
@@ -110,12 +115,18 @@ class NotificationsViewModel @Inject constructor(
             if (packageManager.resolveActivity(intent, 0) != null) {
                 intent
             } else {
-                val launchIntent = packageManager.getLaunchIntentForPackage(notification.packageName)
-                launchIntent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                launchIntent
+                packageManager.getLaunchIntentForPackage(notification.packageName)?.apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                }
             }
         } catch (e: Exception) {
+            Log.e(TAG, "Error creating notification intent", e)
             null
         }
+    }
+
+    companion object {
+        private const val TAG = "NotificationsVM"
+        private const val INTENT_DATA_PENDING = "pendingIntent"
     }
 }

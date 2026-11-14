@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="summary_notification_text">
+        <item quantity="one">%d notification was blocked</item>
+        <item quantity="other">%d notifications were blocked</item>
+    </plurals>
+    <plurals name="summary_notification_big_text">
+        <item quantity="one">Ondy blocked %d notification. Tap to review it.</item>
+        <item quantity="other">Ondy blocked %d notifications. Tap to review them.</item>
+    </plurals>
+</resources>

@@ -1,9 +1,13 @@
 package com.ondy.app.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "blocked_notifications", indices = [androidx.room.Index(value = ["notificationKey"], unique = true)])
+@Entity(
+    tableName = "blocked_notifications",
+    indices = [Index(value = ["notificationKey"], unique = true)]
+)
 data class BlockedNotificationEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
@@ -15,7 +19,12 @@ data class BlockedNotificationEntity(
     val isRead: Boolean = false,
     val intentAction: String? = null,
     val intentData: String? = null,
-    val notificationKey: String? = null
+    // notificationKey includes postTime (sbn.key:postTime) to distinguish
+    // genuine updates from duplicate deliveries of the same event.
+    val notificationKey: String,
+    val filterId: Long? = null,
+    val showInHistory: Boolean = true,
+    val showInWidget: Boolean = false
 )
 
 @Entity(tableName = "schedule_times")

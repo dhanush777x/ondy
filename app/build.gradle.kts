@@ -7,32 +7,28 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-val localProperties = Properties()
-localProperties.load(file("../local.properties").inputStream())
+// local.properties is machine specific and must not be required to configure the build.
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) {
+        file.inputStream().use { load(it) }
+    }
+}
 
-val keystorePassword = localProperties.getProperty("ondy.store.password", "ondy123456")
-val keyPasswordValue = localProperties.getProperty("ondy.key.password", "ondy123456")
-val keyAliasValue = localProperties.getProperty("ondy.key.alias", "ondy-key")
+val keystoreFile = file("release.keystore")
+val releaseSigningConfigured = keystoreFile.exists() &&
+    localProperties.getProperty("ondy.store.password") != null
 
 android {
     namespace = "com.ondy.app"
     compileSdk = 34
 
-    signingConfigs {
-        create("release") {
-            storeFile = file("release.keystore")
-            storePassword = keystorePassword
-            keyAlias = keyAliasValue
-            keyPassword = keyPasswordValue
-        }
-    }
-
     defaultConfig {
         applicationId = "com.ondy.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -40,32 +36,61 @@ android {
         }
     }
 
+    if (releaseSigningConfigured) {
+        signingConfigs {
+            create("release") {
+                storeFile = keystoreFile
+                storePassword = localProperties.getProperty("ondy.store.password")
+                keyAlias = localProperties.getProperty("ondy.key.alias", "ondy-key")
+                keyPassword = localProperties.getProperty("ondy.key.password")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = android.signingConfigs.getByName("release")
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
+        debug {
+            isMinifyEnabled = false
+            isShrinkResources = false
+        }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
     kotlinOptions {
         jvmTarget = "17"
     }
+
     buildFeatures {
         compose = true
     }
+
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"
     }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
         }
     }
 }
@@ -98,15 +123,24 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
 
     implementation("androidx.datastore:datastore-preferences:1.0.0")
-    implementation("androidx.datastore:datastore-preferences-rxjava3:1.0.0")
-
-    implementation("androidx.work:work-runtime-ktx:2.9.0")
-
-    implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation("com.google.android.material:material:1.11.0")
 
     implementation("io.coil-kt:coil-compose:2.5.0")
 
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("io.mockk:mockk:1.13.9")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    // Real org.json implementation for JVM tests; android.jar only ships stubs.
+    testImplementation("org.json:json:20240303")
+
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.5.4")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+}
+
+// Hilt code generation options
+ksp {
+    arg("dagger.hilt.android.internal.disableAndroidSuperclassValidation", "true")
 }

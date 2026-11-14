@@ -1,21 +1,16 @@
 package com.ondy.app.ui.screens.apps
 
-import android.app.Application
-import android.content.Intent
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ondy.app.domain.model.AppInfo
 import com.ondy.app.domain.repository.SelectedAppRepository
-import com.ondy.app.service.NotificationInterceptorService
+import com.ondy.app.util.AppCache
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 enum class AppFilter {
@@ -33,116 +28,73 @@ data class AppsUiState(
 @HiltViewModel
 class AppsViewModel @Inject constructor(
     private val selectedAppRepository: SelectedAppRepository,
-    application: Application
-) : AndroidViewModel(application) {
+    private val appCache: AppCache
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AppsUiState())
     val uiState: StateFlow<AppsUiState> = _uiState.asStateFlow()
 
     private var allApps: List<AppInfo> = emptyList()
-    val packageManager: PackageManager = application.packageManager
 
-    fun loadApps(hasAccess: Boolean) {
+    fun loadApps() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
-
-            val selectedPackages = if (hasAccess) {
-                selectedAppRepository.getSelectedAppsList().toSet()
-            } else {
-                emptySet()
-            }
-
-            val pm = packageManager
-            val apps = withContext(Dispatchers.IO) {
-                try {
-                    pm.getInstalledApplications(PackageManager.GET_META_DATA)
-                        .mapNotNull { appInfo ->
-                            try {
-                                val isUserApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) == 0 ||
-                                        (appInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
-                                AppInfo(
-                                    packageName = appInfo.packageName,
-                                    appName = pm.getApplicationLabel(appInfo).toString(),
-                                    isSelected = appInfo.packageName in selectedPackages,
-                                    isUserApp = isUserApp
-                                )
-                            } catch (e: Exception) {
-                                null
-                            }
-                        }
-                        .sortedBy { it.appName.lowercase() }
-                } catch (e: Exception) {
-                    emptyList()
+            _uiState.update { it.copy(isLoading = true) }
+            runCatching {
+                val selectedPackages = selectedAppRepository.getSelectedAppsList().toSet()
+                appCache.ensureLoaded()
+                appCache.getAllApps().map { app ->
+                    app.copy(isSelected = app.packageName in selectedPackages)
                 }
+            }.onSuccess { apps ->
+                allApps = apps
+                _uiState.update { it.copy(apps = apps) }
+                applyFilters()
             }
-
-            allApps = apps
-            applyFilters()
-            _uiState.value = _uiState.value.copy(isLoading = false)
-        }
-    }
-
-    fun setNotificationAccess(hasAccess: Boolean) {
-        if (hasAccess) {
-            refreshSelectedApps()
+            _uiState.update { it.copy(isLoading = false) }
         }
     }
 
     fun setFilter(filter: AppFilter) {
-        _uiState.value = _uiState.value.copy(currentFilter = filter)
+        _uiState.update { it.copy(currentFilter = filter) }
         applyFilters()
     }
 
     fun toggleAppSelection(packageName: String) {
         viewModelScope.launch {
-            selectedAppRepository.toggleAppSelection(packageName)
-            val updatedApps = allApps.map { app ->
-                if (app.packageName == packageName) {
-                    app.copy(isSelected = !app.isSelected)
-                } else app
-            }
-            allApps = updatedApps
-            applyFilters()
-            sendRefreshBroadcast()
+            runCatching { selectedAppRepository.toggleAppSelection(packageName) }
+                .onSuccess {
+                    allApps = allApps.map { app ->
+                        if (app.packageName == packageName) {
+                            app.copy(isSelected = !app.isSelected)
+                        } else {
+                            app
+                        }
+                    }
+                    _uiState.update { it.copy(apps = allApps) }
+                    applyFilters()
+                }
         }
     }
 
-    private fun sendRefreshBroadcast() {
-        val intent = Intent(NotificationInterceptorService.ACTION_REFRESH_APPS)
-        intent.setPackage(getApplication<Application>().packageName)
-        getApplication<Application>().sendBroadcast(intent)
-    }
-
     fun onSearchQueryChange(query: String) {
-        _uiState.value = _uiState.value.copy(searchQuery = query)
+        _uiState.update { it.copy(searchQuery = query) }
         applyFilters()
     }
 
     private fun applyFilters() {
-        val query = _uiState.value.searchQuery
-        val filter = _uiState.value.currentFilter
-
-        var filtered = when (filter) {
+        val state = _uiState.value
+        val filtered = when (state.currentFilter) {
             AppFilter.ALL -> allApps
             AppFilter.USER -> allApps.filter { it.isUserApp }
             AppFilter.SYSTEM -> allApps.filter { !it.isUserApp }
-        }
-
-        if (query.isNotBlank()) {
-            filtered = filtered.filter { it.appName.contains(query, ignoreCase = true) }
-        }
-
-        _uiState.value = _uiState.value.copy(filteredApps = filtered)
-    }
-
-    private fun refreshSelectedApps() {
-        viewModelScope.launch {
-            val selectedPackages = selectedAppRepository.getSelectedAppsList().toSet()
-            val updatedApps = allApps.map { app ->
-                app.copy(isSelected = app.packageName in selectedPackages)
+        }.let { apps ->
+            if (state.searchQuery.isBlank()) {
+                apps
+            } else {
+                apps.filter { it.appName.contains(state.searchQuery, ignoreCase = true) }
             }
-            allApps = updatedApps
-            applyFilters()
         }
+
+        _uiState.update { it.copy(filteredApps = filtered) }
     }
 }

@@ -16,6 +16,12 @@ interface ScheduleTimeDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(scheduleTime: ScheduleTimeEntity): Long
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(scheduleTimes: List<ScheduleTimeEntity>)
+
+    @Query("DELETE FROM schedule_times")
+    suspend fun deleteAll()
+
     @Query("DELETE FROM schedule_times WHERE id = :id")
     suspend fun deleteById(id: Long)
 }
@@ -30,6 +36,12 @@ interface SelectedAppDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(app: SelectedAppEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(apps: List<SelectedAppEntity>)
+
+    @Query("DELETE FROM selected_apps")
+    suspend fun deleteAll()
 
     @Query("DELETE FROM selected_apps WHERE packageName = :packageName")
     suspend fun deleteByPackageName(packageName: String)

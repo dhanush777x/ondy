@@ -10,6 +10,8 @@
 - **Scheduled Summaries** - Set multiple notification times (e.g., 9am, 12pm, 2pm, 8pm)
 - **Notification List** - View all blocked notifications in one place
 - **Quick Actions** - Dismiss individual notifications, or clear all at once
+- **Theme Modes** - Material You (system + wallpaper colors), Light, or Dark
+- **Backup & Restore** - Export and import your app selection and schedule as JSON
 - **Privacy First** - All data stored locally on your device, no internet required
 - **No Tracking** - No analytics, no collection of any kind
 

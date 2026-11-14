@@ -1,7 +1,5 @@
 package com.ondy.app.ui.screens.notifications
 
-import android.content.pm.PackageManager
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,74 +24,60 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.drawable.toBitmap
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
+import com.ondy.app.R
 import com.ondy.app.domain.model.BlockedNotification
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.ondy.app.ui.components.OndyTopAppBar
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationsScreen(
+    onOpenSettings: () -> Unit,
     viewModel: NotificationsViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Notifications",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
+            OndyTopAppBar(
+                title = stringResource(R.string.notifications),
+                onOpenSettings = onOpenSettings,
                 actions = {
                     if (uiState.notifications.isNotEmpty()) {
-                        TextButton(onClick = { viewModel.clearAllNotifications() }) {
+                        TextButton(onClick = viewModel::clearAllNotifications) {
                             Icon(
                                 imageVector = Icons.Default.DeleteSweep,
-                                contentDescription = "Clear All",
+                                contentDescription = null,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Clear All")
+                            Text(stringResource(R.string.clear_all))
                         }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
-                )
+                }
             )
         },
         containerColor = Color.Transparent
@@ -125,11 +109,12 @@ fun NotificationsScreen(
                 ) {
                     items(
                         items = uiState.notifications,
-                        key = { it.id }
+                        key = { it.id },
+                        contentType = { "notification" }
                     ) { notification ->
                         NotificationCard(
                             notification = notification,
-                            packageManager = viewModel.packageManager,
+                            iconModel = viewModel.iconModel(notification.packageName),
                             onDelete = { viewModel.deleteNotification(notification.id) },
                             onClick = {
                                 viewModel.createNotificationIntent(notification)?.let { intent ->
@@ -159,12 +144,12 @@ private fun EmptyNotificationsState(modifier: Modifier = Modifier) {
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "No blocked notifications",
+                text = stringResource(R.string.no_notifications_title),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "Notifications from selected apps will appear here",
+                text = stringResource(R.string.no_notifications_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
@@ -175,26 +160,14 @@ private fun EmptyNotificationsState(modifier: Modifier = Modifier) {
 @Composable
 private fun NotificationCard(
     notification: BlockedNotification,
-    packageManager: PackageManager,
+    iconModel: String?,
     onDelete: () -> Unit,
     onClick: () -> Unit
 ) {
-    var appIcon by remember(notification.packageName) { mutableStateOf<android.graphics.drawable.Drawable?>(null) }
-
-    LaunchedEffect(notification.packageName) {
-        withContext(Dispatchers.IO) {
-            appIcon = try {
-                packageManager.getApplicationIcon(notification.packageName)
-            } catch (e: Exception) {
-                null
-            }
-        }
-    }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
+            .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         ),
@@ -206,11 +179,11 @@ private fun NotificationCard(
                 .padding(12.dp),
             verticalAlignment = Alignment.Top
         ) {
-            val icon = appIcon
-            if (icon != null) {
-                Image(
-                    bitmap = icon.toBitmap(72, 72).asImageBitmap(),
+            if (iconModel != null) {
+                AsyncImage(
+                    model = iconModel,
                     contentDescription = notification.appName,
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(8.dp))
@@ -243,7 +216,10 @@ private fun NotificationCard(
                         text = notification.appName,
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
                     Text(
                         text = formatTimestamp(notification.timestamp),
@@ -251,7 +227,7 @@ private fun NotificationCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                
+
                 if (notification.title.isNotBlank()) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
@@ -262,13 +238,13 @@ private fun NotificationCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                
+
                 if (notification.content.isNotBlank()) {
                     Text(
                         text = notification.content,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
@@ -280,7 +256,7 @@ private fun NotificationCard(
             ) {
                 Icon(
                     imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete",
+                    contentDescription = stringResource(R.string.cd_delete_notification),
                     modifier = Modifier.size(18.dp),
                     tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
                 )
@@ -289,13 +265,16 @@ private fun NotificationCard(
     }
 }
 
+@Composable
 private fun formatTimestamp(timestamp: Long): String {
     val diff = System.currentTimeMillis() - timestamp
 
     return when {
-        diff < 60 * 1000 -> "Just now"
-        diff < 60 * 60 * 1000 -> "${diff / (60 * 1000)}m ago"
-        diff < 24 * 60 * 60 * 1000 -> "${diff / (60 * 60 * 1000)}h ago"
+        diff < 60 * 1000 -> stringResource(R.string.time_just_now)
+        diff < 60 * 60 * 1000 ->
+            stringResource(R.string.time_minutes_ago, (diff / (60 * 1000)).toInt())
+        diff < 24 * 60 * 60 * 1000 ->
+            stringResource(R.string.time_hours_ago, (diff / (60 * 60 * 1000)).toInt())
         else -> SimpleDateFormat("MMM dd", Locale.getDefault()).format(Date(timestamp))
     }
 }

@@ -11,36 +11,46 @@ import com.ondy.app.data.local.entity.BlockedNotificationEntity
 import com.ondy.app.data.local.entity.ScheduleTimeEntity
 import com.ondy.app.data.local.entity.SelectedAppEntity
 
+/**
+ * Room database for Ondy.
+ *
+ * Version history:
+ *  - 2: initial release
+ *  - 3: added filter/history/widget columns
+ *  - 4: notificationKey became non-null
+ *  - 5: schema cleanup; all pre-release databases are recreated
+ *
+ * Ondy has not shipped to any app store yet, so instead of maintaining a chain of
+ * fragile migrations we use [RoomDatabase.Builder.fallbackToDestructiveMigration].
+ * Any database created by an older pre-release build is recreated on upgrade.
+ * Before the first public release this should be replaced by real migrations and
+ * schema export should be re-enabled.
+ */
 @Database(
     entities = [
         BlockedNotificationEntity::class,
         ScheduleTimeEntity::class,
         SelectedAppEntity::class
     ],
-    version = 2,
+    version = 5,
     exportSchema = false
 )
 abstract class OndyDatabase : RoomDatabase() {
     abstract fun blockedNotificationDao(): BlockedNotificationDao
     abstract fun scheduleTimeDao(): ScheduleTimeDao
     abstract fun selectedAppDao(): SelectedAppDao
-    
+
     companion object {
-        @Volatile
-        private var INSTANCE: OndyDatabase? = null
-        
-        fun getInstance(context: Context): OndyDatabase {
-            return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    OndyDatabase::class.java,
-                    "ondy_db"
-                )
+        private const val DATABASE_NAME = "ondy_db"
+
+        fun createDatabase(context: Context): OndyDatabase {
+            return Room.databaseBuilder(
+                context.applicationContext,
+                OndyDatabase::class.java,
+                DATABASE_NAME
+            )
                 .fallbackToDestructiveMigration()
                 .build()
-                INSTANCE = instance
-                instance
-            }
         }
     }
 }

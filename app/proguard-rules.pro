@@ -1,16 +1,30 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.kts.
+# Ondy R8 rules
+#
+# Most libraries (Hilt, Room, Compose, Coil, Coroutines) ship their own consumer
+# ProGuard rules, so only app-specific keep rules are required here.
 
-# Keep Hilt generated classes
+# Room entities and DAOs are accessed reflectively by the generated implementation.
+-keep class com.ondy.app.data.local.entity.** { *; }
+-keep class com.ondy.app.data.local.dao.** { *; }
+
+# Hilt entry points and generated components.
 -keep class dagger.hilt.** { *; }
--keep class javax.inject.** { *; }
--keep class * extends dagger.hilt.android.internal.managers.ComponentSupplier { *; }
+-keep class * extends dagger.hilt.android.internal.managers.ViewComponentBuilder { *; }
+-keep class * extends dagger.hilt.android.EntryPoint { *; }
 
-# Keep Room
--keep class * extends androidx.room.RoomDatabase
--keep @androidx.room.Entity class *
--dontwarn androidx.room.paging.**
+# Keep enum values (used by Room type converters and Kotlin serialization).
+-keepclassmembers enum * {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}
 
-# Keep Compose
--keep class androidx.compose.** { *; }
+# Keep Parcelable implementations.
+-keep class * implements android.os.Parcelable { *; }
+
+# Keep Kotlin metadata used by reflection.
+-keep class kotlin.Metadata { *; }
+-keep class kotlin.reflect.** { *; }
+
+# Coil / coroutines optional dependencies.
+-dontwarn coil.**
+-dontwarn kotlinx.coroutines.**

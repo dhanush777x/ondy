@@ -1,5 +1,6 @@
 package com.ondy.app.ui.screens.schedule
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ondy.app.domain.model.ScheduleTime
@@ -9,6 +10,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -27,47 +29,36 @@ class ScheduleViewModel @Inject constructor(
     val uiState: StateFlow<ScheduleUiState> = _uiState.asStateFlow()
 
     init {
-        loadScheduleTimes()
-    }
-
-    private fun loadScheduleTimes() {
         viewModelScope.launch {
             scheduleRepository.getAllScheduleTimes().collect { times ->
-                _uiState.value = _uiState.value.copy(
-                    scheduleTimes = times,
-                    isLoading = false
-                )
-                
-                // Schedule alarms for all times
-                times.forEach { time ->
-                    scheduleManager.scheduleNotification(time)
-                }
+                _uiState.update { it.copy(scheduleTimes = times, isLoading = false) }
+                // Re-registering is idempotent: ScheduleManager replaces the
+                // existing PendingIntent for the same hour/minute.
+                times.forEach(scheduleManager::scheduleNotification)
             }
         }
     }
 
     fun addScheduleTime(hour: Int, minute: Int) {
         viewModelScope.launch {
-            val scheduleTime = ScheduleTime(hour = hour, minute = minute)
-            val id = scheduleRepository.addScheduleTime(scheduleTime)
-            val savedTime = scheduleTime.copy(id = id)
-            
-            // Immediately schedule the alarm
-            scheduleManager.scheduleNotification(savedTime)
-            
-            // Update UI immediately
-            val currentTimes = _uiState.value.scheduleTimes.toMutableList()
-            currentTimes.add(savedTime)
-            _uiState.value = _uiState.value.copy(scheduleTimes = currentTimes)
+            runCatching {
+                val scheduleTime = ScheduleTime(hour = hour, minute = minute)
+                val id = scheduleRepository.addScheduleTime(scheduleTime)
+                scheduleManager.scheduleNotification(scheduleTime.copy(id = id))
+            }.onFailure { Log.e(TAG, "Failed to add schedule time", it) }
         }
     }
 
     fun deleteScheduleTime(id: Long) {
         viewModelScope.launch {
-            scheduleManager.cancelNotification(id)
-            scheduleRepository.deleteScheduleTime(id)
-            val currentTimes = _uiState.value.scheduleTimes.filter { it.id != id }
-            _uiState.value = _uiState.value.copy(scheduleTimes = currentTimes)
+            runCatching {
+                scheduleManager.cancelNotification(id)
+                scheduleRepository.deleteScheduleTime(id)
+            }.onFailure { Log.e(TAG, "Failed to delete schedule time", it) }
         }
+    }
+
+    companion object {
+        private const val TAG = "ScheduleViewModel"
     }
 }

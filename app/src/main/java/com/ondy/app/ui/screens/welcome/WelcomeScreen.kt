@@ -1,5 +1,6 @@
 package com.ondy.app.ui.screens.welcome
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.os.PowerManager
@@ -26,7 +27,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -44,10 +44,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.ondy.app.R
+import com.ondy.app.ui.components.OndyLogo
 import kotlinx.coroutines.launch
 
 private fun isNotificationListenerEnabled(context: Context): Boolean {
@@ -64,9 +68,22 @@ private fun isIgnoringBatteryOptimizations(context: Context): Boolean {
 private fun openNotificationListenerSettings(context: Context) {
     val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    context.startActivity(intent)
+    try {
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        context.startActivity(
+            Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    }
 }
 
+/**
+ * Ondy is a notification listener, so battery optimization exemption is a
+ * legitimate requirement for reliable background operation. Ondy is not
+ * distributed through the Play Store, so the accompanying policy warning is
+ * intentionally suppressed.
+ */
+@SuppressLint("BatteryLife")
 private fun requestIgnoreBatteryOptimization(context: Context) {
     val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
     intent.data = android.net.Uri.parse("package:${context.packageName}")
@@ -105,10 +122,11 @@ fun WelcomeScreen(
         hasBatteryExemption = batteryExempt
     }
 
-    // Periodic check every 500ms while on permission pages
+    // Poll while the onboarding screen is visible so grants made in system
+    // settings are reflected immediately when the user comes back.
     LaunchedEffect(Unit) {
         while (true) {
-            kotlinx.coroutines.delay(500)
+            kotlinx.coroutines.delay(1_000)
             val (notifAccess, batteryExempt) = checkPermissions(context)
             if (notifAccess != hasNotificationAccess || batteryExempt != hasBatteryExemption) {
                 hasNotificationAccess = notifAccess
@@ -153,7 +171,9 @@ fun WelcomeScreen(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
-                        text = if (isGranted) "Access Granted ✓" else "Grant Access",
+                        text = stringResource(
+                            if (isGranted) R.string.access_granted else R.string.grant_access
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -171,7 +191,9 @@ fun WelcomeScreen(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
-                        text = if (isGranted) "Already Enabled ✓" else "Disable Optimization",
+                        text = stringResource(
+                            if (isGranted) R.string.already_enabled else R.string.disable_optimization
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -186,13 +208,13 @@ fun WelcomeScreen(
                     coroutineScope.launch {
                         pagerState.animateScrollToPage(pagerState.currentPage + 1)
                     }
-                } else {
-                    if (hasNotificationAccess && hasBatteryExemption) {
-                        onComplete()
-                    }
+                } else if (hasNotificationAccess) {
+                    onComplete()
                 }
             },
-            enabled = pagerState.currentPage != 3 || (hasNotificationAccess && hasBatteryExemption),
+            // Notification access is required for Ondy to work. Battery
+            // optimization exemption is recommended but never blocks onboarding.
+            enabled = pagerState.currentPage != 3 || hasNotificationAccess,
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
@@ -203,9 +225,14 @@ fun WelcomeScreen(
                 .height(50.dp)
         ) {
             Text(
-                text = if (pagerState.currentPage == 3) {
-                    if (hasNotificationAccess && hasBatteryExemption) "Get Started" else "Grant Permissions"
-                } else "Next",
+                text = stringResource(
+                    if (pagerState.currentPage == 3) {
+                        if (hasNotificationAccess) R.string.get_started
+                        else R.string.grant_notification_access
+                    } else {
+                        R.string.next
+                    }
+                ),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold
             )
@@ -217,31 +244,31 @@ fun WelcomeScreen(
 private fun WelcomePageContent(pageIndex: Int) {
     when (pageIndex) {
         0 -> WelcomePageLayout(
-            icon = Icons.Default.RocketLaunch,
-            title = "Welcome to Ondy",
-            description = "Notifications On-Demand.\n\nOndy intercepts notifications from your selected apps and stores them for you to review later. Schedule summary notifications to stay on top of your alerts."
+            icon = null,
+            title = stringResource(R.string.welcome_title),
+            description = stringResource(R.string.welcome_description)
         )
         1 -> WelcomePageLayout(
             icon = Icons.Default.Notifications,
-            title = "Notification Access",
-            description = "Ondy needs permission to access your notifications to intercept and store them.\n\nTap the button below to enable notification access in system settings."
+            title = stringResource(R.string.notification_listener_label),
+            description = stringResource(R.string.welcome_notification_description)
         )
         2 -> WelcomePageLayout(
             icon = Icons.Default.BatteryAlert,
-            title = "Battery Optimization",
-            description = "To ensure Ondy works reliably, please disable battery optimization.\n\n⚠️ Note: Some phone manufacturers (Samsung, Xiaomi, OnePlus, Oppo, Vivo, Huawei, etc.) have additional restrictions. You may need to manually allow background activity in your device's app settings."
+            title = stringResource(R.string.welcome_battery_title),
+            description = stringResource(R.string.welcome_battery_description)
         )
         else -> WelcomePageLayout(
             icon = Icons.Default.Security,
-            title = "Privacy First",
-            description = "Your data stays on your device. We don't collect any data - your privacy is our priority.\n\n• All data stored locally\n• No internet access required\n• No analytics or tracking"
+            title = stringResource(R.string.welcome_privacy_title),
+            description = stringResource(R.string.welcome_privacy_description)
         )
     }
 }
 
 @Composable
 private fun WelcomePageLayout(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector?,
     title: String,
     description: String
 ) {
@@ -260,12 +287,17 @@ private fun WelcomePageLayout(
                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(56.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
+            if (icon == null) {
+                // First page shows the Ondy brand mark instead of a generic icon.
+                OndyLogo(modifier = Modifier.size(64.dp))
+            } else {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(56.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(40.dp))

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Notification history is private; never include it in backups. -->
+    <exclude domain="root" path="."/>
+    <exclude domain="database" path="ondy_db"/>
+    <exclude domain="sharedpref" path="."/>
+    <exclude domain="file" path="datastore"/>
+</full-backup-content>
